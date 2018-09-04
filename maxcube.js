@@ -105,7 +105,7 @@ module.exports = function(RED) {
             if(deviceInfo.device_type == '1' || deviceInfo.device_type == '2' || deviceInfo.device_type == '3'){
               setTemp(deviceStatus.rf_address, msg.payload.degrees, msg.payload.mode, msg.payload.untilDate);
             }else{
-              node.log("Ignoring device "+deviceStatus.rf_address + "(device_type "+deviceInfo.device_type+")");
+              node.log("Temperature: ignoring device "+deviceStatus.rf_address + "(device_type "+deviceInfo.device_type+")");
             }
           }
         });
@@ -113,6 +113,57 @@ module.exports = function(RED) {
     });
   }
   RED.nodes.registerType("maxcube in", MaxcubeNodeIn);
+
+  function MaxcubeNodeScheduleIn(config) {
+    var node = this;
+    if(!initNode(node, config)){
+      return;
+    }
+
+    node.on('input', function(msg) {
+      if(checkInputDisabled(node)){
+        return;
+      };
+
+      validateMsg(msg);
+
+      var maxCube = node.serverConfig.maxCube;
+
+      var setSchedule = function(){
+        maxCube.setSchedule(rf_address, room_id, weekday, temperaturesArray, timesArray).then(function (success) {
+          var data = [rf_address, room_id, weekday, temperaturesArray, timesArray].filter(function (val) {return val;}).join(', ')
+          if (success) {
+            node.log('Schedule set (' + data+ ')');
+          } else {
+            node.log('Error setting Schedule (' + data+ ')');
+          }
+        }).catch(function(e) {
+          node.warn(e);
+        });
+      }
+
+      var devices = [];
+      //specific device
+      if(msg.payload.rf_address){
+        setSchedule(msg.payload.rf_address, msg.payload.room_id, msg.payload.weekday, msg.payload.temperaturesArray, msg.payload.timesArray);
+      }else{
+        //all devices: query getDeviceStatus, then update all!
+        maxCube.getDeviceStatus().then(function (devices) {
+          for (var i = 0; i < devices.length; i++) {
+            var deviceStatus = devices[i];
+            //ignoring eco buttons/window switch/etc
+            var deviceInfo = maxCube.getDeviceInfo(deviceStatus.rf_address);
+            if(deviceInfo.device_type == '1' || deviceInfo.device_type == '2' || deviceInfo.device_type == '3'){
+              setSchedule(deviceStatus.rf_address, deviceInfo.room_id, msg.payload.weekday, msg.payload.temperaturesArray, msg.payload.timesArray);
+            }else{
+              node.log("Schedule: ignoring device "+deviceStatus.rf_address + "(device_type "+deviceInfo.device_type+")");
+            }
+          }
+        });
+      }
+    });
+  }
+  RED.nodes.registerType("maxcube in", MaxcubeNodeScheduleIn);
 
   function MaxcubeNodeOut(config) {
     var node = this;
