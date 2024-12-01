@@ -159,6 +159,7 @@ module.exports = function(RED) {
              return { rf_address: deviceStatus.rf_address, payload: deviceStatus };
            })]);
          }
+         maxCube.close();
       });
     });
   }
@@ -216,7 +217,26 @@ module.exports = function(RED) {
     }
 
     node.maxCube = new MaxCube(node.host, node.port);
+    node.initialised = false;
 
+    node.maxCube.on('device_list', function () {
+//    node.maxCube.on('connected', function () {
+      if (!node.initialised) {
+        node.initialised = true;
+        node.maxCube.close();
+      }
+    });
+
+/*
+    node.maxCube.on('connected', function () {
+      if (!node.initialised) {
+        node.maxCube.getDeviceStatus().then(function (payload) {
+          node.initialised = true;
+          node.maxCube.disconnect();
+        }
+      }
+    });
+*/
     node.on("close", function() {
       node.maxCube.close();
     });
